@@ -66,12 +66,11 @@ As can be seen in figure \ref{fig4}, If the diagonals of the matrix are taken, a
     \item The number of items in Pass \#1 is divided by the number of threads for the process to run on. This gives us the number of cells each thread must process, $n$.
     \item The same is done for Pass \#2, $m$.
     \item Each thread is randomly assigned $n$ exclusive items from Pass \#1, and $m$ items for Pass \#2.
-    \item The cells in Pass \#2 are locked with a singular mutex.
-    \item The threads perform their calculations to the desired precision.
-    \item Threads submit a message to a control thread when they have completed their computation.
-    \item Threads poll the mutex lock waiting. 
-    \item Once all threads have completed their computations, the control thread unlocks the cells for Pass\#2.
-    \item Once the cells are unlocked, the threads are free to complete the computations on their assigned Pass \#2 cells.
+    \item The threads perform their calculations.
+    \item Threads submit a message to a shared array containing the status of each thread when they have completed their computation.
+    \item Threads poll the shared array waiting for all threads to be done
+    \item Once the shared array shows all threads finished, the threads are free to complete the computations on their assigned Pass \#2 cells.
+    \item The process repeats, flipping back and forth between Pass \#1 and \#2 until cells settle down to their desired precision.
 \end{enumerate}
 This algorithm at first glance appears to elegantly avoid all race conditions and maximise the work throughput of threads.
 \end{document}
