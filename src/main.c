@@ -322,6 +322,8 @@ double **compute (int p, double P, int n, double **a){
         return a;
         
     }
+    printf("================================\n");
+    printf("note: one thread is used for control, computations will be run on %d threads\n",p);
 
     int worka = counta/p, workb = countb/p;
     int extraa = counta%p, extrab = countb%p;
@@ -380,6 +382,32 @@ double **compute (int p, double P, int n, double **a){
     return a;
 }
 
+double **readfromfile(char *filename, int n){
+    FILE *f = fopen(filename,"r");
+    double **a;
+    if (f == NULL){printf("fatal: no such file or invalid format : %s\n",filename);exit(1);}
+    char *c = malloc(sizeof(char*));
+    int x = 0; int y = 0;
+    a = malloc(n * sizeof(*a));
+    for(int i=0; i<n; i++){
+        a[i] = malloc(n * sizeof(*a[i]));
+    }
+    while(!feof(f)){
+        fscanf(f,"%s",c);
+        a[x][y] = strtod(c,NULL);
+        y++;
+        if (y == n){
+            x++;
+            y=0;
+        }
+        if(x == n){
+            break;
+        }        
+    }
+    fclose(f);
+    return a;
+}
+
 int main(int argc, char **argv){
     int p,n;
     double P;
@@ -398,6 +426,10 @@ int main(int argc, char **argv){
                     P = strtod((*++argv),NULL);
                     break;
                 case 'a':
+                    if((*argv)[2] == 'f'){
+                        a = readfromfile((*++argv),n);
+                        break;
+                    }
                     a = malloc(n * sizeof(*a));
                     for(int i=0; i<n; i++){
                         a[i] = malloc(n * sizeof(*a[i]));
@@ -425,13 +457,11 @@ int main(int argc, char **argv){
         printf("================================\n");
         printf("INITIAL: \n");
         printf("================================\n");
-        printa(a,n);
-        printf("================================\n");
-        printf("note: one thread is used for control, computations will be run on %d threads\n",p-1);
+        //printa(a,n);
         printf("================================\n");
         printf("COMPUTED: \n");
         printf("================================\n");
         a = compute(p,P,n,a);
-        printa(a,n);
+        //printa(a,n);
     }
 }
