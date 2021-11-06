@@ -121,7 +121,7 @@ int check_done(CELL *aa, double P, double** a){
             int a2 = fabs(aa->prev[1] - a[aa->x][aa->y-1]);
             int a3 = fabs(aa->prev[2] - a[aa->x+1][aa->y]);
             int a4 = fabs(aa->prev[3] - a[aa->x][aa->y+1]);
-            if((a1+a2+a3+a4)<= P){done =1;}
+            if((a1+a2+a3+a4)<= P*4){done =1;}
         }
         else{
             done = 0;
@@ -222,7 +222,7 @@ void compute1(void *argsv){
         count++;
         aa = pa->next;
         bb = pb->next;
-        if(check_done(aa,P,a) && check_done(bb,P,a)){
+        if(check_done(aa,P,a) && (check_done(bb,P,a) || bb == NULL)){
             printf("completed in %d passes\n",count);
             printf("================================================================\n");  
             return;
@@ -321,6 +321,12 @@ double **compute (int p, double P, int n, double **a){
         compute1(args);
         return a;
         
+    }
+    if(bb->next == NULL){
+        printf("Array too small, running sequentially...\n");
+        args = new_args(a,aa,bb,P);
+        compute1(args);
+        return a;
     }
     printf("================================\n");
     printf("note: one thread is used for control, computations will be run on %d threads\n",p);
@@ -457,11 +463,9 @@ int main(int argc, char **argv){
         printf("================================\n");
         printf("INITIAL: \n");
         printf("================================\n");
-        //printa(a,n);
         printf("================================\n");
         printf("COMPUTED: \n");
         printf("================================\n");
         a = compute(p,P,n,a);
-        //printa(a,n);
     }
 }

@@ -9,7 +9,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/src/main",
-            "args": ["-p", "5", "-P", "1.0", "-n", "5", "-a", "39", "46", "10", "55", "38", "54", "9", "13", "23", "44", "17", "35", "27", "63", "45", "14", "18", "58", "16", "6", "43", "22", "34", "8", "40"],
+            "args": ["-p", "3", "-P", "0.1", "-n", "3", "-af","e" ],
             "stopAtEntry": true,
             "cwd": "${workspaceFolder}/src/",
             "environment": [],
