@@ -9,7 +9,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/src/main",
-            "args": ["-p", "3", "-P", "0.1", "-n", "9", "-af","e" ],
+            "args": ["-p", "3", "-P", "0.1", "-n", "3", "-af","e" ],
             "stopAtEntry": true,
             "cwd": "${workspaceFolder}/src/",
             "environment": [],

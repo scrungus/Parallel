@@ -20,7 +20,6 @@ typedef struct thread_status {
 TSTAT *tstat;
 
 typedef struct cell {
-    int id;
     int x;
     int y;
     double prev[4];
@@ -31,14 +30,10 @@ typedef struct cell {
 
 typedef struct argt {
     double **a;
-    int starta;
-    int worka;
-    int startb;
-    int workb;
+    CELL *pa;
+    CELL *pb;
     double P;
 }ARGT;
-
-CELL *aa, *bb;
 
 void printa(double **a, int n){
     for(int i = 0; i < n;i++){
@@ -80,57 +75,35 @@ TSTAT *find_tstat(pthread_t thread){
     return NULL;
 }
 
-ARGT *new_args(double **a,int starta, int worka, int startb, int workb, double P){
+ARGT *new_args(double **a, CELL *pa, CELL *pb, double P){
     ARGT *argt = malloc(sizeof(ARGT));
     if(argt==NULL){printf("Memory allocation failed, exiting.\n");exit(1);}
     argt->a = a;
-    argt->starta = starta;
-    argt->worka = worka;
-    argt->startb = startb;
-    argt->workb = workb;
+    argt->pb = pb;
+    argt->pa = pa;
     argt->P = P;
 
     return argt;
 }
 
-CELL *find_next(CELL *a , int id){
-    CELL *p = a;
-    while(p != NULL){
-        if(p->id == id){
-            return p;
-        }
-        p = p->next;
-    }
-    return NULL;
-}
-
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-
-CELL *new_workt(int start, int work,CELL *pa,pthread_t t, char c){
+CELL *new_workt(CELL *a, int n){
     CELL *workt = malloc(sizeof(CELL));
     if(workt==NULL){printf("Memory allocation failed, exiting.\n");exit(1);}
     CELL *first = workt;
-    CELL *a = find_next(pa,start);
-    pthread_mutex_lock(&mutex);
-    printf("Thread %lu given work: ",t);
-    while(work-- && a != NULL){
+
+    while(n-- && a != NULL){
         workt->next = malloc(sizeof(CELL));
         *workt->next = *a;
-        printf("(%d,%d) ",a->x,a->y);
         workt = workt->next;
         a = a->next;
     }
-    printf("for Pass %c \n",c);
-    fflush( stdout );
-    pthread_mutex_unlock(&mutex);
     workt->next = NULL;
     return first;
 }
 
-CELL *new_cell(int x, int y, int id){
+CELL *new_cell(int x, int y){
     CELL *pa = malloc(sizeof(CELL));
     if(pa==NULL){printf("Memory allocation failed, exiting.\n");exit(1);}
-    pa->id = id;
     pa->x = x;
     pa->y = y;
     for (int i = 0; i < 4;i++){
@@ -140,22 +113,21 @@ CELL *new_cell(int x, int y, int id){
     return pa;
 }
 
-int check_done(CELL *pa, double P, double** a){
+int check_done(CELL *aa, double P, double** a){
     int done = 0;
-    CELL *p = pa;
-    while(p != NULL){
-        if(fabs(pa->curr - pa->prevv)<=P){
-            int a1 = fabs(p->prev[0] - a[p->x-1][p->y]);
-            int a2 = fabs(p->prev[1] - a[p->x][p->y-1]);
-            int a3 = fabs(p->prev[2] - a[p->x+1][p->y]);
-            int a4 = fabs(p->prev[3] - a[p->x][p->y+1]);
+    while(aa != NULL){
+        if(fabs(aa->curr - aa->prevv)<=P){
+            int a1 = fabs(aa->prev[0] - a[aa->x-1][aa->y]);
+            int a2 = fabs(aa->prev[1] - a[aa->x][aa->y-1]);
+            int a3 = fabs(aa->prev[2] - a[aa->x+1][aa->y]);
+            int a4 = fabs(aa->prev[3] - a[aa->x][aa->y+1]);
             if((a1+a2+a3+a4)<= P*4){done =1;}
         }
         else{
             done = 0;
             break;
         }
-        p=p->next;
+        aa=aa->next;
     }
     return done;
 }
@@ -175,125 +147,115 @@ void printdiff(CELL *a, double P){
 }
 void *compute0(void *argsv){
     double avg,P,**a;
-    CELL *pa, *pb, *p1, *p2;
+    CELL *aa,*bb, *pa, *pb;
     int count=0;
     ARGT *args = (ARGT*)argsv;
     a = args->a;
+    pa = args->pa;
+    pb = args->pb;
     P = args->P;
-    p1 = new_workt(args->starta,args->worka,aa,pthread_self(),'A');
-    p2 = new_workt(args->startb,args->workb,bb,pthread_self(),'B');
-    pa = p1->next;
-    pb = p2->next;
-    printf("Thread %lu has starta %d, worka %d, startb %d, workb %d\n",pthread_self(),args->starta,args->worka,args->startb,args->workb);
-    int done,complete =0;
+    int done;
     //First pass computation
     while(1){
+        pthread_barrier_wait(&check);
         count++;
+        aa = pa->next;
+        done = 0;
+        if(check_done(aa,P,a)){
+            done = 1;
+        }
         pthread_barrier_wait(&passa);
           // printf("Thread %lu Barrier A\n",pthread_self());
            fflush( stdout );
-        while((!complete) && pa != NULL){
-            avg = (a[pa->x-1][pa->y] + 
-            a[pa->x][pa->y-1] + 
-            a[pa->x+1][pa->y] + 
-            a[pa->x][pa->y+1])/4;
+        while(aa != NULL){
+            avg = (a[aa->x-1][aa->y] + 
+            a[aa->x][aa->y-1] + 
+            a[aa->x+1][aa->y] + 
+            a[aa->x][aa->y+1])/4;
 
-            a[pa->x][pa->y] = avg;
-            pa->prevv = pa->curr;
-            pa->curr = avg;
-            pa->prev[0] = a[pa->x-1][pa->y];
-            pa->prev[1] =a[pa->x][pa->y-1];
-            pa->prev[2] = a[pa->x+1][pa->y];
-            pa->prev[3] =a[pa->x][pa->y+1];
-            pa = pa->next;
+            a[aa->x][aa->y] = avg;
+            aa->prevv = aa->curr;
+            aa->curr = avg;
+            aa->prev[0] = a[aa->x-1][aa->y];
+            aa->prev[1] =a[aa->x][aa->y-1];
+            aa->prev[2] = a[aa->x+1][aa->y];
+            aa->prev[3] =a[aa->x][aa->y+1];
+            aa = aa->next;
         }
-        pthread_barrier_wait(&check);
-            pb = p2->next;
-            done = 0;
-            if(check_done(pb,P,a)){
-                done = 1;
-            }
-            else{
-                //printf("Thread %lu Pass %d, check on B failed\n",pthread_self(),count);
-                fflush( stdout );
-            }
         //second pass
         pthread_barrier_wait(&passb);
             //printf("Thread %lu Barrier B\n",pthread_self());
            fflush( stdout );
-        while((!complete) && pb != NULL){
-            avg = (a[pb->x-1][pb->y] + 
-            a[pb->x][pb->y-1] + 
-            a[pb->x+1][pb->y] + 
-            a[pb->x][pb->y+1])/4;
+        while(bb != NULL){
+            avg = (a[bb->x-1][bb->y] + 
+            a[bb->x][bb->y-1] + 
+            a[bb->x+1][bb->y] + 
+            a[bb->x][bb->y+1])/4;
 
-            a[pb->x][pb->y] = avg;
-            pb->prevv = pb->curr;
-            pb->curr = avg;
-            pb->prev[0] = a[pb->x-1][pb->y];
-            pb->prev[1] =a[pb->x][pb->y-1];
-            pb->prev[2] = a[pb->x+1][pb->y];
-            pb->prev[3] =a[pb->x][pb->y+1];
-            pb = pb->next;
+            a[bb->x][bb->y] = avg;
+            bb->prevv = bb->curr;
+            bb->curr = avg;
+            bb->prev[0] = a[bb->x-1][bb->y];
+            bb->prev[1] =a[bb->x][bb->y-1];
+            bb->prev[2] = a[bb->x+1][bb->y];
+            bb->prev[3] =a[bb->x][bb->y+1];
+            bb = bb->next;
         }
-        pthread_barrier_wait(&check);
-        pa = p1->next;
-        if(done && check_done(pa,P,a)){
+        bb = pb->next;
+        if(done && check_done(bb,P,a)){
             update_tstat(pthread_self(),count);
         }
-        //else{printf("Thread %lu Pass %d, check on A failed\n",pthread_self(),count);fflush( stdout );}
     }
 }
 
-void compute1(double **a, double P){
-    double avg;
+void compute1(void *argsv){
+    double avg,P,**a;
+    CELL *aa,*bb, *pa, *pb;
     int count=0;
-    CELL *pa = aa->next;
-    CELL *pb = bb->next;
+    ARGT *args = (ARGT*)argsv;
+    a = args->a;
+    pa = args->pa;
+    pb = args->pb;
+    P = args->P;
     //First pass computation
-    int done;
     while(1){
         count++;
-        done = 0;
-        while(pa != NULL){
-            avg = (a[pa->x-1][pa->y] + 
-            a[pa->x][pa->y-1] + 
-            a[pa->x+1][pa->y] + 
-            a[pa->x][pa->y+1])/4;
-
-            a[pa->x][pa->y] = avg;
-            pa->prevv = pa->curr;
-            pa->curr = avg;
-            pa->prev[0] = a[pa->x-1][pa->y];
-            pa->prev[1] =a[pa->x][pa->y-1];
-            pa->prev[2] = a[pa->x+1][pa->y];
-            pa->prev[3] =a[pa->x][pa->y+1];
-            pa = pa->next;
-        }
-        pb = bb->next;
-        if(check_done(pb,P,a)|| pb == NULL){
-            done = 1;
-        }
-        while(pb != NULL){
-            avg = (a[pb->x-1][pb->y] + 
-            a[pb->x][pb->y-1] + 
-            a[pb->x+1][pb->y] + 
-            a[pb->x][pb->y+1])/4;
-
-            a[pb->x][pb->y] = avg;
-            pb->prevv = pb->curr;
-            pb->curr = avg;
-            pb->prev[0] = a[pb->x-1][pb->y];
-            pb->prev[1] =a[pb->x][pb->y-1];
-            pb->prev[2] = a[pb->x+1][pb->y];
-            pb->prev[3] =a[pb->x][pb->y+1];
-            pb = pb->next;
-        }
-        pa = aa->next;
-        if(done && check_done(pa,P,a)){
+        aa = pa->next;
+        bb = pb->next;
+        if(check_done(aa,P,a) && (check_done(bb,P,a) || bb == NULL)){
             printf("completed in %d passes\n",count);
             printf("================================================================\n");  
             return;
+        }
+        while(aa != NULL){
+            avg = (a[aa->x-1][aa->y] + 
+            a[aa->x][aa->y-1] + 
+            a[aa->x+1][aa->y] + 
+            a[aa->x][aa->y+1])/4;
+
+            a[aa->x][aa->y] = avg;
+            aa->prevv = aa->curr;
+            aa->curr = avg;
+            aa->prev[0] = a[aa->x-1][aa->y];
+            aa->prev[1] =a[aa->x][aa->y-1];
+            aa->prev[2] = a[aa->x+1][aa->y];
+            aa->prev[3] =a[aa->x][aa->y+1];
+            aa = aa->next;
+        }
+        while(bb != NULL){
+            avg = (a[bb->x-1][bb->y] + 
+            a[bb->x][bb->y-1] + 
+            a[bb->x+1][bb->y] + 
+            a[bb->x][bb->y+1])/4;
+
+            a[bb->x][bb->y] = avg;
+            bb->prevv = bb->curr;
+            bb->curr = avg;
+            bb->prev[0] = a[bb->x-1][bb->y];
+            bb->prev[1] =a[bb->x][bb->y-1];
+            bb->prev[2] = a[bb->x+1][bb->y];
+            bb->prev[3] =a[bb->x][bb->y+1];
+            bb = bb->next;
         }
     }
 }
@@ -306,7 +268,12 @@ void printcell(CELL *a){
     }
 }
 
-
+CELL *find_next(CELL *a , int n){
+    while(n-- && a != NULL){
+        a = a->next;
+    }
+    return a;
+}
 
 double **compute (int p, double P, int n, double **a){
 
@@ -319,10 +286,9 @@ double **compute (int p, double P, int n, double **a){
     TSTAT *tstat0 = tstat;
 
     CELL *pa = malloc(sizeof(CELL));
-    aa = pa;
+    CELL *aa = pa;
     CELL *pb = malloc(sizeof(CELL));
-    bb = pb;
-
+    CELL *bb = pb;
     if(pa==NULL||aa==NULL||bb==NULL||pb==NULL){printf("Memory allocation failed, exiting.\n");exit(1);}
 
     int k = 0, counta = 0, countb = 0;
@@ -330,7 +296,7 @@ double **compute (int p, double P, int n, double **a){
     for(int i = 1; i < n-1; i++){
         for(int j = 1+k; j < n-1; j+=2){
             counta++;
-            pa->next = new_cell(i,j,counta);
+            pa->next = new_cell(i,j);
             pa=pa->next;
         }
         if(k ==0){k=1;}
@@ -340,7 +306,7 @@ double **compute (int p, double P, int n, double **a){
     for(int i = 1; i < n-1; i++){
         for(int j = 1+k; j < n-1; j+=2){
             countb++;
-            pb->next = new_cell(i,j,countb);
+            pb->next = new_cell(i,j);
             pb=pb->next;
         }
         if(k ==0){k=1;}
@@ -351,15 +317,15 @@ double **compute (int p, double P, int n, double **a){
     if(p==0){
         printf("1 thread provided, running sequentially...\n");
         printf("================================================================\n");  
-        //args = new_args(a,P);
-        compute1(a,P);
+        args = new_args(a,aa,bb,P);
+        compute1(args);
         return a;
         
     }
     if(bb->next == NULL){
         printf("Array too small, running sequentially...\n");
-        //args = new_args(a,P);
-        compute1(a,P);
+        args = new_args(a,aa,bb,P);
+        compute1(args);
         return a;
     }
     printf("================================\n");
@@ -367,36 +333,44 @@ double **compute (int p, double P, int n, double **a){
 
     int worka = counta/p, workb = countb/p;
     int extraa = counta%p, extrab = countb%p;
+    CELL *workta;
+    CELL *worktb;
     
 
     int i =0;
-    int starta = 1, startb = 1;
-    int extra1,extra2; 
     while(i<p){
-        extra1 = extra2 = 0;
         if(extraa){
+            workta = new_workt(aa->next,worka+1);
             extraa--;
-            extra1=1;
-
+            aa = find_next(aa, worka+1);
+        }
+        else{
+             workta = new_workt(aa->next,worka);
+             aa = find_next(aa, worka);
         }
         if(extrab){
+            worktb = new_workt(bb->next,workb+1);
             extrab--;
-            extra2 = 1;
+            bb = find_next(bb, workb+1);
         }
-        args = new_args(a,starta,worka+extra1,startb,workb+extra2,P);
+        else{
+             worktb = new_workt(bb->next,workb);
+             bb = find_next(bb, workb);
+        }
+        args = new_args(a,workta,worktb,P);
         int err = pthread_create(&threads[i],NULL,&compute0,args);
         if(err){
             printf("Thread Creation Error, exiting..\n");
         }
         else{
+            printf("Thread Created with ID : %lu\n",threads[i]);
+            fflush( stdout );
             tstat0->next = new_tstat(threads[i]);
             tstat0 = tstat0->next;
         }
         i++;
-        starta = starta+worka+extra1;
-        startb = startb+workb+extra2;
     }
-    //printf("================================================================\n");   
+    printf("================================================================\n");   
     int done=0;
     while(!done){
         tstat0 = tstat->next;
@@ -407,11 +381,10 @@ double **compute (int p, double P, int n, double **a){
         }
     }
     for(int i=0;i<p; i++){
-        pthread_t t = threads[i];
-        int c = find_tstat(threads[i])->count;
-        printf("Thread %lu completed in %d passes\n",t,c);
+        printf("Thread %lu completed in %d passes\n",threads[i],find_tstat(threads[i])->count);
         pthread_cancel(threads[i]);
     }
+    printf("================================================================\n");   
     return a;
 }
 
@@ -494,6 +467,5 @@ int main(int argc, char **argv){
         printf("COMPUTED: \n");
         printf("================================\n");
         a = compute(p,P,n,a);
-        printa(a,n);
     }
 }

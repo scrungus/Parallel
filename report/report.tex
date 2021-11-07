@@ -141,51 +141,6 @@ There are a few more functions in the program, however they are all self explana
 \section{Analysis}
 \subsection{Scalability Investigation}
 \subsubsection{Efficency}
-Running on 44 threads with an matrix of dimension $n=1000$, the program completes in ~63 seconds. The same size matrix completes sequentially in 12 minutes 35.5 seconds\footnote{on average, over 10 runs.}. This gives us an efficiency of:
-\begin{figure}[H]
-    \centering
-    $E_p = \frac{S_p}{p} = \frac{755.5}{44*63}(seconds) = 30.1\%$
-\end{figure}
-Which is pretty poor. I suspect this is to do with the data structure I have used; each thread is given a linked list of cells, and when splitting the work between threads, copies of sections of the linked list are made and given to each thread, which I suspect is a slow operation.
-Specifically I believe this section: 
-\begin{figure}[H]
-    \begin{verbatim}
-        while(i<p){
-            if(extraa){
-                workta = new_workt(aa->next,worka+1);
-                extraa--;
-                aa = find_next(aa, worka+1);
-            }
-            else{
-                 workta = new_workt(aa->next,worka);
-                 aa = find_next(aa, worka);
-            }
-            if(extrab){
-                worktb = new_workt(bb->next,workb+1);
-                extrab--;
-                bb = find_next(bb, workb+1);
-            }
-            else{
-                 worktb = new_workt(bb->next,workb);
-                 bb = find_next(bb, workb);
-            }
-            args = new_args(a,workta,worktb,P);
-            int err = pthread_create(&threads[i],NULL,&compute0,args);
-            if(err){
-                printf("Thread Creation Error, exiting..\n");
-            }
-            i++;
-        }
-        \end{verbatim}
-        \caption{Initial cell assignment.}
-        \label{slowshit}
-\end{figure}
-Was the main cause of the inefficiency. Evidence for this was the fact that on the same $n=1000$ matrix, when run on 22 threads, the runtime was approximately the same as for 44; thus there is some fixed amount of work happening in both, which is likely this work done in the control thread.
+Running on 43 threads with an matrix of dimension $n=1000$, the program completes in 57 seconds flat. The same size matrix completes sequentially in 
 \subsection{Correctness Testing}
 \end{document}
-
-- move cells to global context
-- create pointer in control thread to each cell
-- populate cells 
-- give each thread a start id and end id
-- offload work discovery to threads
