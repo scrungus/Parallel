@@ -3,6 +3,7 @@
 #include <pthread.h>
 #include <math.h>
 #include <string.h>
+#include "main.h"
 
 #define RESET   "\033[0m"
 #define RED     "\033[31m"      /* Red */
@@ -165,8 +166,6 @@ void *compute0(void *argsv){
             done = 1;
         }
         pthread_barrier_wait(&passa);
-          // printf("Thread %lu Barrier A\n",pthread_self());
-           fflush( stdout );
         while(aa != NULL){
             avg = (a[aa->x-1][aa->y] + 
             a[aa->x][aa->y-1] + 
@@ -184,8 +183,6 @@ void *compute0(void *argsv){
         }
         //second pass
         pthread_barrier_wait(&passb);
-            //printf("Thread %lu Barrier B\n",pthread_self());
-           fflush( stdout );
         while(bb != NULL){
             avg = (a[bb->x-1][bb->y] + 
             a[bb->x][bb->y-1] + 
@@ -278,6 +275,9 @@ CELL *find_next(CELL *a , int n){
 double **compute (int p, double P, int n, double **a){
 
     p--;
+    printf("a received : \n");
+    printa(a,n);
+    printf("p: %d, n: %d, P: %.2f\n", p,n,P);
     pthread_barrier_init(&passa,NULL,p);
     pthread_barrier_init(&passb,NULL,p);
     pthread_barrier_init(&check,NULL,p);
@@ -358,15 +358,16 @@ double **compute (int p, double P, int n, double **a){
              bb = find_next(bb, workb);
         }
         args = new_args(a,workta,worktb,P);
+        tstat0->next = new_tstat(threads[i]);
+        tstat0 = tstat0->next;
         int err = pthread_create(&threads[i],NULL,&compute0,args);
         if(err){
             printf("Thread Creation Error, exiting..\n");
+            exit(1);
         }
         else{
             printf("Thread Created with ID : %lu\n",threads[i]);
             fflush( stdout );
-            tstat0->next = new_tstat(threads[i]);
-            tstat0 = tstat0->next;
         }
         i++;
     }
@@ -380,12 +381,17 @@ double **compute (int p, double P, int n, double **a){
             tstat0 = tstat0->next;
         }
     }
+    printf("I finished\n");
     for(int i=0;i<p; i++){
         printf("Thread %lu completed in %d passes\n",threads[i],find_tstat(threads[i])->count);
         pthread_cancel(threads[i]);
     }
     printf("================================================================\n");   
     return a;
+}
+
+void connect(){
+    printf("connected to C\n");
 }
 
 double **readfromfile(char *filename, int n){
